@@ -4,7 +4,7 @@ jobs:
   build-content-shell:
     machine:
       image: ubuntu-2204:current
-    resource_class: medium
+    resource_class: large
     environment:
       DEPOT_TOOLS_UPDATE: 1
     steps:
@@ -74,7 +74,7 @@ jobs:
           no_output_timeout: 5h
           command: |
             cd src
-            autoninja -C out/content_shell content_shell -j4
+            autoninja -C out/content_shell content_shell -j8
             echo "=== Build result ==="
             ls -lh out/content_shell/content_shell 2>/dev/null || echo "content_shell binary not found"
             ls out/content_shell/ | head -20
