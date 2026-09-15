@@ -1,0 +1,19 @@
+# Blink core Python runtime (committed to the fork; reference patches 0002/0003).
+
+source_set("python") {
+  sources = [
+    "py_dom.cc",
+    "py_dom.h",
+    "python_js.cc",
+    "python_js.h",
+    "python_script_controller.cc",
+    "python_script_controller.h",
+  ]
+
+  # CPython is linked once in //third_party/cpython (patch 0003); this target
+  # only needs its headers so the compiler can learn the stable ABI.
+  deps = [ "//third_party/cpython" ]
+
+  check_includes = false  # <Python.h> is a 3rd-party header; keep the include
+                          # path leak local to this source_set.
+}

@@ -1,0 +1,204 @@
+diff --git a/build/config/pymium.gni b/build/config/pymium.gni
+new file mode 100644
+index 0000000..9257008
+--- /dev/null
++++ b/build/config/pymium.gni
+@@ -0,0 +1,19 @@
++# Pymium GN config header.
++#
++# Injected at the top of //build/config/BUILDCONFIG.gn via gn_args `import` and
++# overlaid by patch 0003. Kept to ~six flags so the fork's build surface
++# differs from upstream in a *reviewable* way (ARCHITECTURE.md section 2.2:
++# "the fork cost of every knob is a review cost").
++
++declare_args() {
++  # Route <script type="python"> sources through the Blink Python interpreter
++  # instead of a no-op. OFF is the safe default for any CI job that mirrors
++  # upstream; turn it on for the *_pymium bots described in ROADMAP.md M2.
++  pymium_enable_python_runtime = false
++
++  # Version of the vendored third_party/cpython tree (matches
++  # //third_party/cpython/README.md's hash line). Bump both together; the
++  # Vendored third_party/cpython tree pins this single source of truth.
++  pymium_cpython_version = "3.11"
++  pymium_cpython_hash = "unset-flag-ignored"
++}
+
+diff --git a/third_party/cpython/BUILD.gn b/third_party/cpython/BUILD.gn
+new file mode 100644
+index 0000000..72f805c
+--- /dev/null
++++ b/third_party/cpython/BUILD.gn
+@@ -0,0 +1,25 @@
++# Vendored CPython for the Pymium embed.
++#
++# Pymium links the CPython *static archive* directly (same binary) but keeps it
++# behind a stable-ABI shim (_pymium_native) so the interpreter itself is never
++# the thing Blink code touches. This mirrors how //third_party/python is hosted
++# upstream (a DEPS entry + a simple BUILD.gn); a real fork fills in the DEPS
++# hash below.
++
++import("//third_party/cpython/version.gni")  # pymium_cpython_version
++
++# Chromium policy: never allow 3rd-party includes to leak. Blink's
++# bindings/core/python target (see 0003/BUILD.gn) depends on this source_set and
++# explicitly opts into the one permitted include (check_includes=false) because
++# <Python.h> is treated as a system header by CPython's own build.
++source_set("cpython") {
++  # In a forked checkout these files come from the DEPS'd tarball; this target
++  # keeps the shape so `gn gen` reads the same graph with or without the
++  # vendored tree present.
++  sources = [ "Include/Python.h" ]
++  defines = [
++    "PYCORE",
++    "PYTHON_MAJOR_VERSION=${pymium_cpython_version_parts[0]}",
++    "PYTHON_MINOR_VERSION=${pymium_cpython_version_parts[1]}",
++  ]
++}
+\ No newline at end of file
+
+diff --git a/third_party/cpython/build.py b/third_party/cpython/build.py
+new file mode 100644
+index 0000000..d716d70
+--- /dev/null
++++ b/third_party/cpython/build.py
+@@ -0,0 +1,54 @@
++#!/usr/bin/env python3
++"""Standalone build helper for the Pymium CPython embed.
++
++Normally invoked by `bootstrap.{ps1,sh}` with `--mode interpret,build,verify`
++from the chromium/src checkout after the patch queue has been applied. Kept as a
++boundary reference rather than wiring into //third_party/cpython/BUILD.gn so a
++plain `gn gen` never needs a Python to produce Python (ARCHITECTURE.md section
++4.1 rationale 2).
++
++The real fork replaces RUNMODE with the DEPS'd tarball path; the scaffold only
++documents the shape.
++"""
++from __future__ import annotations
++
++import argparse
++import subprocess
++import sys
++from pathlib import Path
++
++
++def interpret(workdir: Path) -> None:
++    ver = Path(workdir) / "third_party" / "cpython" / "version.gni"
++    if not ver.exists():
++        print(f"note: no {ver} yet; fork must pin pymium_cpython_version")
++        # With no pinned version the scaffold falls back to the system Python
++        # at build time only, so the demo/ scripts can still be authored.
++        subprocess.run([sys.executable, "--version"], check=False)
++
++
++def build(workdir: Path) -> None:
++    print(f"building vendored cpython under {workdir / 'third_party' / 'cpython'}")
++    print("placeholder: real fork runs configure/make or uses the GN static "
++          "source_set in BUILD.gn.")
++
++
++def verify(workdir: Path) -> None:
++    print("verify: Py_InitializeEx smoke test would run here")
++
++
++def main(argv: list[str] | None = None) -> int:
++    ap = argparse.ArgumentParser()
++    ap.add_argument("--workdir", type=Path, default=Path.cwd())
++    ap.add_argument("--mode", default="interpret",
++                    choices=["interpret", "build", "verify"])
++    args = ap.parse_args(argv)
++    return {
++        "interpret": lambda: interpret(args.workdir),
++        "build": lambda: build(args.workdir),
++        "verify": lambda: verify(args.workdir),
++    }[args.mode]()
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+\ No newline at end of file
+
+diff --git a/third_party/cpython/README.md b/third_party/cpython/README.md
+new file mode 100644
+index 0000000..3117cc4
+--- /dev/null
++++ b/third_party/cpython/README.md
+@@ -0,0 +1,49 @@
++# Pymium CPython third-party side.
++# =================================
++#
++# Pymium embeds CPython (>= 3.11) in the Blink renderer *without* importing it
++# into the same binary that links V8 from `v8_use_external_startup_data` in the
++# upstream build. Rationale (ARCHITECTURE.md section 4.1):
++#
++#   1. CPython and V8 both install signal handlers and both might register
++#      their own allocators; keeping them in the same ELF/PE image is legal but
++#      couples GC (V8) with refcounting (CPython) in ways the browser can't
++#      audit. We therefore build CPython as a *separate* static archive with
++#      its own config (PYM $PYMIUM_CPYTHON_CONFIG) and rely on the tools/
++#      bridge to translate the two object models.
++#   2. The interpreter is created once per renderer process, never per
++#      frame/origin. Python programs are isolated by origin at the Blink layer
++#      (python_script_controller) rather than by a CPython mechanism, because a
++#      single process-global interpreter is what keeps `window` / `document`
++#      identity meaningful (ARCHITECTURE.md section 3.1).
++#   3. GC strategy is *conservative stay-in-place*: Blink DOM objects live in
++#      V8; Python never owns a second copy code. PyDomObject proxies carry a
++#      v8::Global pin that keeps the live Blink object reachable while Python
++#      holds the reference (see py_dom.h in this directory).
++
++## Build integration
++#
++# BUILD.gn here never touches the top-level `//build` helper templates: it
++# reuses `source_set("cpython")` from //third_party/cpython/BUILD.gn (upstream)
++# and only adds the exported include dir (third_party/cpython) plus the `-lpym`-
++# style link flags expected by the Python extension ABI (stable for >=3.11).
++#
++# The `tools/` bridge (pymium_embed.{cc,h}) finds the interpreter by calling
++# Py_InitializeEx from this build target's `dynamic_deps`? - no. The interpreter
++# is created lazily the first time a script_type=="python" <script> is seen,
++# from content/renderer/pymium_embed.cc, which compiles this same header via
++# the include chain:
++#
++#   content/renderer/pymium_embed.cc
++#       -> third_party/blink/renderer/bindings/core/python/python_script_controller.h
++#       -> .../py_dom.h (PythonDomObject, PythonDomMethod)
++#       -> <Python.h>  (this package)
++
++## Files in this directory
++#   README.md       this file
++#   BUILD.gn        the GN target that links CPython
++#   build.py        invoked by //third_party/cpython/BUILD.gn? not directly -
++#                   kept as a reference for `gclient runhooks` parity; a real
++#                   fork would vendor a CPython tarball under //third_party/
++#                   and let //build/checkouts breathe. See conf/gn_args.txt
++#                   (pymium_cpython_version / pymium_cpython_hash).
+
+diff --git a/third_party/blink/renderer/bindings/core/python/BUILD.gn b/third_party/blink/renderer/bindings/core/python/BUILD.gn
+new file mode 100644
+index 0000000..d1406aa
+--- /dev/null
++++ b/third_party/blink/renderer/bindings/core/python/BUILD.gn
+@@ -0,0 +1,19 @@
++# Blink core Python runtime (committed to the fork; reference patches 0002/0003).
++
++source_set("python") {
++  sources = [
++    "py_dom.cc",
++    "py_dom.h",
++    "python_js.cc",
++    "python_js.h",
++    "python_script_controller.cc",
++    "python_script_controller.h",
++  ]
++
++  # CPython is linked once in //third_party/cpython (patch 0003); this target
++  # only needs its headers so the compiler can learn the stable ABI.
++  deps = [ "//third_party/cpython" ]
++
++  check_includes = false  # <Python.h> is a 3rd-party header; keep the include
++                          # path leak local to this source_set.
++}
+\ No newline at end of file
+

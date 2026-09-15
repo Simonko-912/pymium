@@ -1,0 +1,22 @@
+# Pymium build configuration -- copy to src/out/pymium/args.gn
+
+# Release-like build. For a faster local iteration flip is_debug and
+# symbol_level as you prefer.
+is_debug = false
+is_component_build = false
+symbol_level = 1
+
+# Pymium switch: embeds CPython into the renderer and enables
+# <script type="text/python">.
+use_pymium = true
+
+# CPython checkout details (see third_party/cpython/README).
+pymium_cpython_version = "3.13"
+pymium_cpython_hash = "8ac9750cc673a9a2f1d1c61df3c978e0b2b1f5a5"
+
+# Keep the renderer deterministic & sandboxed; no extra componentization.
+blink_symbol_level = 0
+
+# Typical flag sets for a fork keep these on:
+enable_nacl = false
+treat_warnings_as_errors = true

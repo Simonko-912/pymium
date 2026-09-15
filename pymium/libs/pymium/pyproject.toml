@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pymium"
+version = "0.1.0"
+description = "The Pymium web-platform API for Python: DOM, events, timers, and JS interop."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "BSD-3-Clause" }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pymium*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
