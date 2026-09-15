@@ -1,0 +1,19 @@
+# Pymium GN config header.
+#
+# Injected at the top of //build/config/BUILDCONFIG.gn via gn_args `import` and
+# overlaid by patch 0003. Kept to ~six flags so the fork's build surface
+# differs from upstream in a *reviewable* way (ARCHITECTURE.md section 2.2:
+# "the fork cost of every knob is a review cost").
+
+declare_args() {
+  # Route <script type="python"> sources through the Blink Python interpreter
+  # instead of a no-op. OFF is the safe default for any CI job that mirrors
+  # upstream; turn it on for the *_pymium bots described in ROADMAP.md M2.
+  pymium_enable_python_runtime = false
+
+  # Version of the vendored third_party/cpython tree (matches
+  # //third_party/cpython/README.md's hash line). Bump both together; the
+  # Vendored third_party/cpython tree pins this single source of truth.
+  pymium_cpython_version = "3.11"
+  pymium_cpython_hash = "unset-flag-ignored"
+}
