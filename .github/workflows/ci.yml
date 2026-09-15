@@ -27,7 +27,9 @@ jobs:
         run: pip install -e pymium/libs/pymium
 
       - name: Run tests
-        run: python -m pytest pymium/libs/pymium/tests -q
+        run: |
+          cd pymium/libs/pymium
+          python -m pytest tests -q
 
   # ── Job 2: verify all Chromium-path files are present ──────────────────
   overlay:
