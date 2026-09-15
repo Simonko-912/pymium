@@ -26,17 +26,13 @@ jobs:
       - run:
           name: Set up chromium build structure
           command: |
-            # .gclient at parent of src/, pointing at our fork
-            cat > .gclient <<'EOF'
-            solutions = [
-              { "name": "src",
-                "url": "https://github.com/Simonko-912/pymium.git",
-                "deps_file": "DEPS",
-                "managed": False,
-                "custom_deps": {},
-              },
-            ]
-            EOF
+            echo 'solutions = [{' > .gclient
+            echo '  "name": "src",' >> .gclient
+            echo '  "url": "https://github.com/Simonko-912/pymium.git",' >> .gclient
+            echo '  "deps_file": "DEPS",' >> .gclient
+            echo '  "managed": False,' >> .gclient
+            echo '  "custom_deps": {},' >> .gclient
+            echo '}]' >> .gclient
             echo "=== .gclient ==="
             cat .gclient
 
