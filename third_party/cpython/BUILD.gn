@@ -1,0 +1,25 @@
+# Vendored CPython for the Pymium embed.
+#
+# Pymium links the CPython *static archive* directly (same binary) but keeps it
+# behind a stable-ABI shim (_pymium_native) so the interpreter itself is never
+# the thing Blink code touches. This mirrors how //third_party/python is hosted
+# upstream (a DEPS entry + a simple BUILD.gn); a real fork fills in the DEPS
+# hash below.
+
+import("//third_party/cpython/version.gni")  # pymium_cpython_version
+
+# Chromium policy: never allow 3rd-party includes to leak. Blink's
+# bindings/core/python target (see 0003/BUILD.gn) depends on this source_set and
+# explicitly opts into the one permitted include (check_includes=false) because
+# <Python.h> is treated as a system header by CPython's own build.
+source_set("cpython") {
+  # In a forked checkout these files come from the DEPS'd tarball; this target
+  # keeps the shape so `gn gen` reads the same graph with or without the
+  # vendored tree present.
+  sources = [ "Include/Python.h" ]
+  defines = [
+    "PYCORE",
+    "PYTHON_MAJOR_VERSION=${pymium_cpython_version_parts[0]}",
+    "PYTHON_MINOR_VERSION=${pymium_cpython_version_parts[1]}",
+  ]
+}

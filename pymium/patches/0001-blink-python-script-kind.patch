@@ -1,0 +1,77 @@
+# Copyright 2026 The Pymium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Pymium 0001: make the HTML script infrastructure aware of a third script
+# kind, ScriptType::kPython. REBASE: context approximates the Chromium
+# revision it was cut against; apply with `git apply --3way` and re-verify.
+# Notes: the final (routing) hunk is a reference hunk -- verbatim line numbers
+# drift between revisions and the hunk must be re-placed manually when --3way
+# cannot resolve it. See ARCHITECTURE.md section 2.
+
+diff --git a/third_party/blink/renderer/core/script/script_type.h b/third_party/blink/renderer/core/script/script_type.h
+--- a/third_party/blink/renderer/core/script/script_type.h
++++ b/third_party/blink/renderer/core/script/script_type.h
+@@ -25,7 +25,8 @@
+ 
+ enum class ScriptType : uint8_t {
+   kClassic,
+   kModule,
++  kPython,
+ };
+ 
+ }  // namespace blink
+diff --git a/third_party/blink/renderer/core/script/script_type.h b/third_party/blink/renderer/core/script/script_type.h
+--- a/third_party/blink/renderer/core/script/script_type.h
++++ b/third_party/blink/renderer/core/script/script_type.h
+@@ -39,4 +40,10 @@
+ 
+ }  // namespace blink
+ 
++namespace blink {
++inline bool IsPythonScriptType(ScriptType type) {
++  return type == ScriptType::kPython;
++}
++}  // namespace blink
++
+ #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_SCRIPT_SCRIPT_TYPE_H_
+diff --git a/third_party/blink/renderer/core/script/script_loader.cc b/third_party/blink/renderer/core/script/script_loader.cc
+--- a/third_party/blink/renderer/core/script/script_loader.cc
++++ b/third_party/blink/renderer/core/script/script_loader.cc
+@@ -420,8 +420,16 @@
+   if (type_attribute_value == "module") {
+     script_type = ScriptType::kModule;
+     type_attribute_matches_javascript = true;
+     return true;
+   }
++  if (type_attribute_value == "python" ||
++      type_attribute_value == "text/python" ||
++      type_attribute_value == "application/x-python" ||
++      type_attribute_value == "text/x-python") {
++    script_type = ScriptType::kPython;
++    type_attribute_matches_javascript = false;
++    return true;
++  }
+   type_attribute_matches_javascript = false;
+   return false;
+ }
+diff --git a/third_party/blink/renderer/core/script/script_loader.cc b/third_party/blink/renderer/core/script/script_loader.cc
+--- a/third_party/blink/renderer/core/script/script_loader.cc
++++ b/third_party/blink/renderer/core/script/script_loader.cc
+@@ -745,7 +745,16 @@
+    if (script_type_ == ScriptType::kModule) {
+     if (FetchInternal() == ScriptLoadResult::kNotReady)
+       return;
+     ExecuteModuleScript(...);
+   }
++  if (script_type_ == ScriptType::kPython) {
++    auto* controller =
++        PythonScriptController::From(*element_->GetExecutionContext());
++    if (controller->ExecuteScriptSource(script_text_, resource_->Url()))
++      DispatchLoadEvent();
++    else
++      DispatchErrorEvent();
++    return;
++  }
+ 	classic_script = make_garbage_collected<ClassicScript>(
+       ScriptSourceCode(script_text_, resource_->Url(), TextPosition::MinimumPosition()));

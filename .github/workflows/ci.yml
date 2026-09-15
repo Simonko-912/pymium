@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # ── Job 1: test the pymium Python library ──────────────────────────────
+  library:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pymium
+        run: pip install -e pymium/libs/pymium
+
+      - name: Run tests
+        run: python -m pytest pymium/libs/pymium/tests -q
+
+  # ── Job 2: verify all Chromium overlay files are present ───────────────
+  overlay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check overlay files exist and have content
+        run: |
+          for f in \
+            build/config/pymium.gni \
+            content/renderer/pymium_embed.h \
+            content/renderer/pymium_embed.cc \
+            third_party/cpython/BUILD.gn \
+            third_party/cpython/build.py \
+            third_party/cpython/README.md \
+            third_party/blink/renderer/bindings/core/python/BUILD.gn \
+            third_party/blink/renderer/bindings/core/python/py_dom.h \
+            third_party/blink/renderer/bindings/core/python/py_dom.cc \
+            third_party/blink/renderer/bindings/core/python/python_js.h \
+            third_party/blink/renderer/bindings/core/python/python_js.cc \
+            third_party/blink/renderer/bindings/core/python/python_script_controller.h \
+            third_party/blink/renderer/bindings/core/python/python_script_controller.cc; do
+            if [ -s "$f" ]; then
+              echo "OK  $f"
+            else
+              echo "MISSING or empty: $f"
+              exit 1
+            fi
+          done
+          echo ""
+          echo "All 13 overlay files present."
+
+      - name: Show patch reference docs
+        run: |
+          echo "Patch queue (reference — files live in the tree directly):"
+          cat pymium/patches/SERIES

@@ -1,0 +1,19 @@
+# Pymium patch queue (reference documentation).
+# Single-repo model: the files at the repo root's chromium/src paths are committed
+# directly to the fork. NEW patches (0002-0004) are regenerated from those files
+# by tools/gen_new_file_patches.py and are NOT applied during bootstrap. REBASE
+# patches (0001, 0005) are reference hunks for editing pre-existing upstream files.
+#
+# Format per line:  <filename> <kind: NEW|EDIT|REBASE> <short note>
+#
+#   NEW    = patch only adds brand-new files -> applies deterministically.
+#   EDIT   = patch touches existing upstream files with stable context.
+#   REBASE = patch touches existing upstream files whose context moves between
+#            Chromium revisions; apply with git apply --3way and review manually.
+#
+# Order matters; 0004 must follow 0002 because it references the controller.
+0001-blink-python-script-kind.patch REBASE script_type.h enum + ScriptLoader routing (verifies with --3way)
+0002-blink-python-runtime.patch    NEW    blink/renderer/bindings/core/python runtime: controller, DOM bridge, marshalling, window.python impl
+0003-cpython-and-gn.patch          NEW    build/config/pymium.gni + third_party/cpython + blink python/BUILD.gn
+0004-content-renderer-init.patch   NEW    content/renderer/pymium_embed.{h,cc} interpreter bootstrap
+0005-web-python-api-hook.patch     REBASE one-line hook in bindings/core/v8/script_extensions.cc to install window.python (reference hunk)
