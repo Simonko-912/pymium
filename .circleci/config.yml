@@ -6,7 +6,7 @@ jobs:
       image: ubuntu-2204:current
     resource_class: medium
     environment:
-      DEPOT_TOOLS_UPDATE: 0
+      DEPOT_TOOLS_UPDATE: 1
     steps:
       - run:
           name: System prep — swap + disk check
@@ -42,6 +42,7 @@ jobs:
             git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git depot_tools
             export PATH="$PWD/depot_tools:$PATH"
             echo 'export PATH="$PWD/depot_tools:$PATH"' >> "$BASH_ENV"
+            "$PWD/depot_tools/ensure_bootstrap" || echo "ensure_bootstrap exit: $?"
             gclient --version
 
       - run:
