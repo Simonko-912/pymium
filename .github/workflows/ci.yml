@@ -11,10 +11,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            pymium/libs
+            pymium/conf
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pytest
 
       - name: Install pymium
         run: pip install -e pymium/libs/pymium
@@ -22,11 +29,18 @@ jobs:
       - name: Run tests
         run: python -m pytest pymium/libs/pymium/tests -q
 
-  # ── Job 2: verify all Chromium overlay files are present ───────────────
+  # ── Job 2: verify all Chromium-path files are present ──────────────────
   overlay:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            build/config/pymium.gni
+            content/renderer
+            third_party/cpython
+            third_party/blink/renderer/bindings/core/python
+            pymium/patches
 
       - name: Check overlay files exist and have content
         run: |
@@ -55,6 +69,4 @@ jobs:
           echo "All 13 overlay files present."
 
       - name: Show patch reference docs
-        run: |
-          echo "Patch queue (reference — files live in the tree directly):"
-          cat pymium/patches/SERIES
+        run: cat pymium/patches/SERIES
