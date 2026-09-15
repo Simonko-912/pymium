@@ -1,0 +1,112 @@
+version: 2.1
+
+jobs:
+  build-content-shell:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: medium
+    environment:
+      DEPOT_TOOLS_UPDATE: 0
+    steps:
+      - run:
+          name: System prep — swap + disk check
+          command: |
+            sudo fallocate -l 16G /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+            echo "=== RAM ==="
+            free -h
+            echo "=== Disk ==="
+            df -h /
+
+      - checkout:
+          path: src
+
+      - run:
+          name: Set up chromium build structure
+          command: |
+            # .gclient at parent of src/, pointing at our fork
+            cat > .gclient <<'EOF'
+            solutions = [
+              { "name": "src",
+                "url": "https://github.com/Simonko-912/pymium.git",
+                "deps_file": "DEPS",
+                "managed": False,
+                "custom_deps": {},
+              },
+            ]
+            EOF
+            echo "=== .gclient ==="
+            cat .gclient
+
+      - run:
+          name: Install depot_tools
+          command: |
+            git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git depot_tools
+            export PATH="$PWD/depot_tools:$PATH"
+            echo 'export PATH="$PWD/depot_tools:$PATH"' >> "$BASH_ENV"
+            gclient --version
+
+      - run:
+          name: gclient sync — fetch third_party deps
+          no_output_timeout: 30m
+          command: |
+            gclient sync --no-history --shallow --with_branch_heads --with_tags -D
+
+      - run:
+          name: GN gen
+          command: |
+            cd src
+            gn gen out/content_shell --args='
+              is_debug = false
+              is_component_build = false
+              symbol_level = 0
+              enable_nacl = false
+              blink_symbol_level = 0
+              v8_symbol_level = 0
+              use_pymium = true
+              is_official_build = false
+              enable_remoting = false
+              use_openh264 = false
+              proprietary_codecs = false
+              enable_widevine = false
+              use_allocator = "none"
+            '
+
+      - run:
+          name: Build content_shell
+          no_output_timeout: 5h
+          command: |
+            cd src
+            autoninja -C out/content_shell content_shell -j4
+            echo "=== Build result ==="
+            ls -lh out/content_shell/content_shell 2>/dev/null || echo "content_shell binary not found"
+            ls out/content_shell/ | head -20
+
+      - run:
+          name: Collect artifacts
+          when: always
+          command: |
+            mkdir -p /tmp/artifacts
+            cp src/out/content_shell/content_shell /tmp/artifacts/ 2>/dev/null || true
+            cp src/out/content_shell/lib*.so /tmp/artifacts/ 2>/dev/null || true
+            ls -lh /tmp/artifacts/
+
+      - store_artifacts:
+          path: /tmp/artifacts
+          destination: pymium-build
+
+      - run:
+          name: Summary
+          when: always
+          command: |
+            echo "=== Disk usage ==="
+            du -sh src/out/ 2>/dev/null
+            du -sh src/third_party/ 2>/dev/null | tail -1
+            df -h /
+
+workflows:
+  build-browser:
+    jobs:
+      - build-content-shell
