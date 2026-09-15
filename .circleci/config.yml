@@ -61,13 +61,11 @@ jobs:
               enable_nacl = false
               blink_symbol_level = 0
               v8_symbol_level = 0
-              use_pymium = true
               is_official_build = false
               enable_remoting = false
               use_openh264 = false
               proprietary_codecs = false
               enable_widevine = false
-              use_allocator = "none"
             '
 
       - run:
